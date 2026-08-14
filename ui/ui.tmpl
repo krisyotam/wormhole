@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="theme-color" content="#fafafa">
+    <meta name="msapplication-navbutton-color" content="#fafafa">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width">
+
+    <link rel="manifest" href='data:application/manifest+json,{"name":"{{.Title}}","short_name":"{{.Title}}","description":"  ","icons":[{"src":"data:image/svg+xml;base64,favicon_will_be_here","sizes":"150x150","type":"image/svg+xml"}],"background":"#fafafa","theme_color":"#fafafa","display":"standalone"}' />
+
+    <title>{{.Title}}</title>
+    <link href="data:image/svg+xml;base64,favicon_will_be_here" rel="icon" type="image/svg+xml" />
+    <style type="text/css">css_will_be_here</style>
+    <script>
+        window.ro = {{.Ro}}
+        window.extraPath = {{.ExtraPath}}.slice(0, -1)
+        window.onload = function () { js_will_be_here }
+    </script>
+</head>
+
+<body>
+    <!-- Overlays (help, sums, media, etc.) -->
+    <div onclick="window.helpOff()" style="display: none;" id="help"><table id="helpTable"><tbody>
+        <tr><td>Arrows/Enter</td><td>browse files/folders and pictures</td></tr>
+        <tr><td>Ctrl/Meta + Enter</td><td>download selected item as archive</td></tr>
+        <tr><td>Ctrl/Meta + C</td><td>copy URL to clipboard</td></tr>
+        <tr><td>Ctrl/Meta + E</td><td>rename item</td></tr>
+        <tr><td>Ctrl/Meta + Backspace</td><td>delete item</td></tr>
+        <tr><td>Ctrl/Meta/Shift + U</td><td>upload new file/folder</td></tr>
+        <tr><td>Ctrl/Meta + M</td><td>create a new directory</td></tr>
+        <tr><td>Ctrl/Meta + X</td><td>cut selected path</td></tr>
+        <tr><td>Ctrl/Meta + V</td><td>paste previously selected paths to directory</td></tr>
+        <tr><td>Ctrl/Meta + Z</td><td>copy checksums of selected file</td></tr>
+        <tr><td>Ctrl + click</td><td>download selected item as archive</td></tr>
+        <tr><td>click file icon </td><td>rename item</td></tr>
+        <tr><td>double click file icon</td><td>delete item</td></tr>
+        <tr><td>drag-and-drop item on UI</td><td>move item</td></tr>
+        <tr><td>drag-and-drop external item</td><td>upload file/folders</td></tr>
+        <tr><td>any other letter</td><td>fuzzy search</td></tr>
+    </tbody></table></div>
+
+    <div onclick="window.sumsOff()" style="display: none;" id="sums"><table id="sumsTable"><tbody>
+        <tr><td>Key</td><td>Hash Algorithm</td></tr>
+        <tr><td>1</td><td>copy sha1 sum</td></tr>
+        <tr><td>2</td><td>copy sha256 sum</td></tr>
+        <tr><td>3</td><td>copy sha512 sum</td></tr>
+        <tr><td>5</td><td>copy md5 sum</td></tr>
+    </tbody></table></div>
+
+    <div style="display: none;" onclick="window.quitAll()" id="quitAll"><i style="display: none;" id="toast">cant reach server</i></div>
+    <textarea style="display: none;" id="text-editor"></textarea>
+    <div id="drop-grid" style="display:none !important"></div>
+    <input type="file" id="clickupload" multiple style="display:none"/>
+
+    <div id="pics" style="display:none;"> <img draggable="false" onclick="window.picsNav()" id="picsHolder" /></div>
+    <div id="video" style="display:none;">
+        <div onclick="window.videodl()" class="icon-dl" id="video-dl"></div>
+        <video controls id="videoHolder"> </video>
+    </div>
+    <div id="pdf" style="display:none;"> </div>
+
+    <!-- Theme toggle (init before DOM to prevent flash) -->
+    <script>
+    (function(){
+        var t = localStorage.getItem('wormhole-theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        window.toggleTheme = function() {
+            var c = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', c);
+            localStorage.setItem('wormhole-theme', c);
+            updateToggle();
+        };
+        window.updateToggle = function() {
+            var sun = document.getElementById('icon-sun');
+            var moon = document.getElementById('icon-moon');
+            if (!sun || !moon) return;
+            var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            sun.style.display = dark ? 'block' : 'none';
+            moon.style.display = dark ? 'none' : 'block';
+        };
+        document.addEventListener('DOMContentLoaded', updateToggle);
+    })();
+    </script>
+
+    <!-- Page container -->
+    <article id="page">
+
+        <!-- Header row: site label + path + actions -->
+        <div class="row row-header">
+            <div class="cell cell-label">CDN</div>
+            <div class="cell cell-path" onclick="return titleClick(event)"><h1>.{{.Title}}</h1></div>
+            <div class="cell cell-actions">
+                <button id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+                    <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    <svg id="icon-sun" style="display:none" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Column headers -->
+        <div class="row row-colheader">
+            <div class="cell cell-col-icon"></div>
+            <div class="cell cell-col-size">SIZE</div>
+            <div class="cell cell-col-name">NAME</div>
+        </div>
+
+        <!-- File listing -->
+        <div id="listing">
+            <table id="linkTable">
+            {{range .RowsFolders}}
+                <tr>
+                    <td class="iconRow"><i ondblclick="return rm(event)" onclick="return rename(event)" class="btn icon icon-{{.Ext}} icon-blank"></i></td>
+                    <td class="file-size"><code>{{.Size}}</code></td>
+                    <td class="arrow"><div class="arrow-icon"></div></td>
+                    <td class="display-name"><a class="list-links" oncontextmenu="return setCursorTo(event.target.innerText)" onclick="return onClickLink(event)" href="{{.Href}}">{{.Name}}</a></td>
+                </tr>
+            {{end}}
+            {{range .RowsFiles}}
+                <tr>
+                    <td class="iconRow"><i ondblclick="return rm(event)" onclick="return rename(event)" class="btn icon icon-{{.Ext}} icon-blank"></i></td>
+                    <td class="file-size"><code>{{.Size}}</code></td>
+                    <td class="arrow"><div class="arrow-icon"></div></td>
+                    <td class="display-name"><a class="list-links" oncontextmenu="return setCursorTo(event.target.innerText)" onclick="return onClickLink(event)" href="{{.Href}}">{{.Name}}</a></td>
+                </tr>
+            {{end}}
+            </table>
+        </div>
+
+        <!-- Footer row -->
+        <div class="row row-footer">
+            <div class="cell cell-footer-help">Ctrl/Cmd + h</div>
+            <div class="cell cell-footer-brand">cdn.krisyotam.com</div>
+        </div>
+
+    </article>
+
+</body>
+<div id="upBar" class="bar">
+    <span style="display: none;" class="barName" id="upBarName"></span>
+    <div style="display: none;" class="barPc" id="upBarPc">1%</div>
+</div>
+<div id="ok" class="notif icon-large-ok"></div>
+<div id="sad" class="notif icon-large-sad-server"></div>
+</html>
